@@ -61,6 +61,7 @@
       <h1 class="rpage-name" id="rpage-name">loading…</h1>
       <div class="rpage-meta">
         <span class="tag" id="rpage-type" style="display:none"></span>
+        <span class="tag" id="rpage-cuisine" style="display:none"></span>
         <span class="rpage-address" id="rpage-address"></span>
       </div>
     </div>
@@ -111,6 +112,8 @@
 
       const typeEl = document.getElementById("rpage-type");
       if (r.type) { typeEl.textContent = r.type; typeEl.style.display = ""; }
+      const cuisineEl = document.getElementById("rpage-cuisine");
+      if (r.cuisine) { cuisineEl.textContent = r.cuisine; cuisineEl.style.display = ""; }
 
       if (r.address) document.getElementById("rpage-address").textContent = r.address;
 
