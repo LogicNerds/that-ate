@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>that ate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  .rpage-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1.75rem;
+  }
+  .rpage-header-inner {
+    max-width: 860px; margin: 0 auto;
+    display: flex; align-items: flex-end;
+    justify-content: space-between; gap: 1.5rem; flex-wrap: wrap;
+  }
+  .rpage-name {
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    font-weight: 600; color: var(--text);
+    margin-bottom: 0.45rem; letter-spacing: -0.01em;
+  }
+  .rpage-meta { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+  .rpage-address { color: var(--muted); font-size: 0.83rem; }
+  .rating-block { display: flex; flex-direction: column; align-items: flex-end; gap: 0.3rem; }
+  .rating-big {
+    font-size: 2.6rem; font-weight: 600;
+    color: var(--indigo); line-height: 1; letter-spacing: -0.03em;
+  }
+  .rating-count { color: var(--muted); font-size: 0.8rem; }
+
+  .rpage-body { max-width: 860px; margin: 0 auto; padding: 2rem 1.75rem; }
+  .rpage-topbar {
+    display: flex; align-items: center;
+    justify-content: space-between; margin-bottom: 1.5rem;
+  }
+  .rpage-section-title { font-size: 1rem; font-weight: 600; color: var(--text); }
+
+  .reviews-list { display: flex; flex-direction: column; gap: 0.85rem; }
+  .review-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1.1rem 1.2rem;
+  }
+  .review-card-top {
+    display: flex; justify-content: space-between;
+    align-items: flex-start; gap: 1rem; margin-bottom: 0.45rem;
+  }
+  .review-dish { font-size: 0.97rem; font-weight: 500; color: var(--text); margin-bottom: 0.3rem; }
+  .review-date { color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
+  .review-comment { color: var(--muted); font-size: 0.88rem; margin-bottom: 0.55rem; line-height: 1.55; }
+  .review-author { color: #9ca3af; font-size: 0.78rem; }
+
+  @media (max-width: 600px) {
+    .rpage-header-inner { flex-direction: column; align-items: flex-start; }
+    .rating-block { align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="/" class="nav-brand">
+    <img src="/that-ate-assets/that-ate-logo.png" alt="that ate" height="28">
+  </a>
+  <div class="nav-links">
+    <a href="/"            class="nav-link">explore</a>
+    <a href="/log-a-visit" class="nav-link">log a visit</a>
+    <a href="/my-log"      class="nav-link">my log</a>
+  </div>
+  <!-- TODO: replace with real auth button once auth is wired -->
+  <div class="nav-user">you</div>
+</nav>
+
+<div class="rpage-header">
+  <div class="rpage-header-inner">
+    <div>
+      <p class="breadcrumb"><a href="/">explore</a> / <span id="rpage-breadcrumb"></span></p>
+      <h1 class="rpage-name" id="rpage-name">loading…</h1>
+      <div class="rpage-meta">
+        <span class="tag" id="rpage-cuisine" style="display:none"></span>
+        <span class="rpage-address" id="rpage-address"></span>
+      </div>
+    </div>
+    <div class="rating-block">
+      <span class="rating-big" id="rpage-avg">—</span>
+      <div class="bites md" id="rpage-bites"></div>
+      <span class="rating-count" id="rpage-count"></span>
+    </div>
+  </div>
+</div>
+
+<div class="rpage-body">
+  <div class="rpage-topbar">
+    <h2 class="rpage-section-title">what people ate</h2>
+    <a id="log-link" href="/log-a-visit" class="btn-primary">+ log your visit</a>
+  </div>
+  <div class="reviews-list" id="reviews-list"></div>
+  <div class="empty" id="rpage-empty" style="display:none">
+    <p>no reviews yet — be the first!</p>
+    <a id="log-link-empty" href="/log-a-visit" class="empty-cta">log your visit →</a>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+  import { injectBaseStyles, bitesInnerHTML, bitesHTML, formatDate, esc } from "../js/ui.js";
+  import { getRestaurant, getReviewsForRestaurant }                        from "../js/firestore.js";
+
+  injectBaseStyles();
+
+  const params = new URLSearchParams(window.location.search);
+  const id     = params.get("id");
+
+  if (!id) {
+    document.getElementById("rpage-name").textContent = "no restaurant specified.";
+  } else {
+    Promise.all([getRestaurant(id), getReviewsForRestaurant(id)]).then(([r, reviews]) => {
+      if (!r) { document.getElementById("rpage-name").textContent = "restaurant not found."; return; }
+
+      // Update page title
+      document.title = `${r.name} · that ate`;
+
+      // Header
+      document.getElementById("rpage-breadcrumb").textContent = r.name;
+      document.getElementById("rpage-name").textContent       = r.name;
+      document.getElementById("rpage-avg").textContent        = r.avgRating ? r.avgRating.toFixed(1) : "—";
+      document.getElementById("rpage-bites").innerHTML        = bitesInnerHTML(r.avgRating);
+      document.getElementById("rpage-count").textContent      =
+        `${r.reviewCount} ${r.reviewCount === 1 ? "review" : "reviews"}`;
+
+      const cuisineEl = document.getElementById("rpage-cuisine");
+      if (r.cuisine) { cuisineEl.textContent = r.cuisine; cuisineEl.style.display = ""; }
+
+      if (r.address) document.getElementById("rpage-address").textContent = r.address;
+
+      // Wire up "log your visit" links with pre-fill params
+      const logHref = `/log-a-visit?restaurantId=${id}&name=${encodeURIComponent(r.name)}`;
+      document.getElementById("log-link").href       = logHref;
+      document.getElementById("log-link-empty").href = logHref;
+
+      // Reviews
+      const list = document.getElementById("reviews-list");
+      if (reviews.length === 0) { document.getElementById("rpage-empty").style.display = "block"; return; }
+
+      reviews.forEach(rev => {
+        const el = document.createElement("div");
+        el.className = "review-card";
+        el.innerHTML = `
+          <div class="review-card-top">
+            <div>
+              <p class="review-dish">${esc(rev.dish)}</p>
+              ${bitesHTML(rev.rating, "sm")}
+            </div>
+            <span class="review-date">${formatDate(rev.createdAt)}</span>
+          </div>
+          ${rev.comment ? `<p class="review-comment">${esc(rev.comment)}</p>` : ""}
+          <span class="review-author">${esc(rev.userName)}</span>`;
+        list.appendChild(el);
+      });
+    });
+  }
+</script>
+</body>
+</html>
