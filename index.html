@@ -134,7 +134,7 @@
     results.forEach(r => {
       const a = document.createElement("a");
       a.className = "card";
-      a.href = `/restaurant?id=${r.id}`;
+      a.href = `./restaurant?id=${r.id}`;
       a.innerHTML = `
         <div class="card-top">
           <span class="card-name">${esc(r.name)}</span>
