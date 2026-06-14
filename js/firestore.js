@@ -44,13 +44,14 @@ export async function findRestaurantsByName(name) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-export async function createRestaurant({ name, address, addressKey, type }) {
+export async function createRestaurant({ name, address, addressKey, type, cuisine }) {
   const ref = await addDoc(collection(db, "restaurants"), {
     name,
     nameLower:   name.toLowerCase(),
     address:     address    || "",
-    addressKey:  addressKey || "",   // normalized key for dedup
+    addressKey:  addressKey || "",
     type:        type       || "",
+    cuisine:     cuisine    || "",
     avgRating:   0,
     reviewCount: 0,
     createdAt:   serverTimestamp(),
