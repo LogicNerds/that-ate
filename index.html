@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>that ate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  .hero {
+    background: var(--indigo);
+    padding: 3.5rem 1.75rem 3rem;
+    text-align: center;
+  }
+  .hero-headline {
+    font-size: clamp(1.9rem, 5vw, 3rem);
+    font-weight: 600; color: #fff;
+    line-height: 1.2; margin-bottom: 0.5rem;
+    letter-spacing: -0.02em;
+  }
+  .hero-headline em { font-style: normal; color: var(--amber); }
+  .hero-sub {
+    color: rgba(255,255,255,0.65);
+    font-size: 0.95rem; margin-bottom: 2rem;
+  }
+  .search-bar {
+    display: flex; max-width: 480px; margin: 0 auto;
+    border-radius: var(--radius); overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  }
+  .search-input {
+    flex: 1; padding: 0.75rem 1.1rem;
+    background: #fff; border: none;
+    color: var(--text); font-size: 0.95rem;
+    font-family: var(--ff); outline: none;
+  }
+  .search-input::placeholder { color: #9ca3af; text-transform: none; }
+  .search-btn {
+    padding: 0.75rem 1.25rem;
+    background: var(--amber); color: var(--text);
+    border: none; font-weight: 600; font-size: 0.85rem;
+    transition: background 0.15s; white-space: nowrap;
+    font-family: var(--ff);
+  }
+  .search-btn:hover { background: #d97706; }
+
+  .section { max-width: 920px; margin: 0 auto; padding: 2rem 1.75rem; }
+  .section-label {
+    font-size: 0.75rem; font-weight: 600;
+    letter-spacing: 0.08em; color: var(--muted); margin-bottom: 1.1rem;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
+    gap: 1rem;
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1.2rem;
+    text-decoration: none; display: block;
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  }
+  .card:hover {
+    border-color: var(--indigo);
+    box-shadow: 0 4px 14px rgba(67,56,202,0.1);
+    transform: translateY(-2px);
+  }
+  .card-top {
+    display: flex; align-items: flex-start;
+    justify-content: space-between; gap: 0.5rem; margin-bottom: 0.3rem;
+  }
+  .card-name { font-size: 1rem; font-weight: 600; color: var(--text); line-height: 1.3; }
+  .card-address { color: var(--muted); font-size: 0.8rem; margin-bottom: 0.75rem; }
+  .card-bottom { display: flex; align-items: center; gap: 0.6rem; }
+  .card-count { color: var(--muted); font-size: 0.78rem; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="/" class="nav-brand">
+    <img src="/that-ate-assets/that-ate-logo.png" alt="that ate" height="28">
+  </a>
+  <div class="nav-links">
+    <a href="/"              class="nav-link active">explore</a>
+    <a href="/log-a-visit"   class="nav-link">log a visit</a>
+    <a href="/my-log"        class="nav-link">my log</a>
+  </div>
+  <!-- TODO: replace with real auth button once auth is wired -->
+  <div class="nav-user">you</div>
+</nav>
+
+<div class="hero">
+  <h1 class="hero-headline">what did you <em>eat?</em></h1>
+  <p class="hero-sub">log your meals. see what others had. find your next great dish.</p>
+  <div class="search-bar">
+    <input class="search-input" id="search-input" type="text" placeholder="search a restaurant…" />
+    <button class="search-btn" id="search-btn">search</button>
+  </div>
+</div>
+
+<div class="section">
+  <p class="section-label" id="section-label">all restaurants</p>
+  <div class="grid" id="restaurant-grid"></div>
+  <div class="empty" id="explore-empty" style="display:none">
+    <p>no restaurants yet.</p>
+    <a href="/log-a-visit" class="empty-cta">log the first visit →</a>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+  import { injectBaseStyles, bitesHTML, esc } from "./js/ui.js";
+  import { searchRestaurants }                from "./js/firestore.js";
+
+  injectBaseStyles();
+
+  const grid    = document.getElementById("restaurant-grid");
+  const empty   = document.getElementById("explore-empty");
+  const label   = document.getElementById("section-label");
+  const input   = document.getElementById("search-input");
+  const btn     = document.getElementById("search-btn");
+
+  async function load(term = "") {
+    grid.innerHTML = "<p class='status'>loading…</p>";
+    empty.style.display = "none";
+    const results = await searchRestaurants(term);
+    grid.innerHTML = "";
+    label.textContent = term ? `results for "${term}"` : "all restaurants";
+
+    if (results.length === 0) { empty.style.display = "block"; return; }
+
+    results.forEach(r => {
+      const a = document.createElement("a");
+      a.className = "card";
+      a.href = `/restaurant?id=${r.id}`;
+      a.innerHTML = `
+        <div class="card-top">
+          <span class="card-name">${esc(r.name)}</span>
+          ${r.cuisine ? `<span class="tag">${esc(r.cuisine)}</span>` : ""}
+        </div>
+        ${r.address ? `<p class="card-address">${esc(r.address)}</p>` : ""}
+        <div class="card-bottom">
+          ${bitesHTML(r.avgRating, "sm")}
+          <span class="card-count">${r.reviewCount} ${r.reviewCount === 1 ? "bite logged" : "bites logged"}</span>
+        </div>`;
+      grid.appendChild(a);
+    });
+  }
+
+  btn.addEventListener("click", () => load(input.value.trim()));
+  input.addEventListener("keydown", e => { if (e.key === "Enter") load(input.value.trim()); });
+
+  load();
+</script>
+</body>
+</html>
