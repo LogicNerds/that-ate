@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>log a visit · that ate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  .log-page { max-width: 540px; margin: 0 auto; padding: 2.5rem 1.75rem; }
+  .log-title { font-size: 1.75rem; font-weight: 600; color: var(--text); margin-bottom: 0.25rem; letter-spacing: -0.02em; }
+  .log-sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
+
+  /* ── Restaurant search dropdown ── */
+  .restaurant-search-wrap { position: relative; }
+  .dropdown {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: var(--surface); border: 1.5px solid var(--indigo);
+    border-radius: 7px; z-index: 100;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    max-height: 260px; overflow-y: auto;
+  }
+  .dropdown-item {
+    padding: 0.7rem 1rem; cursor: pointer;
+    font-size: 0.9rem; color: var(--text);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+    transition: background 0.1s;
+  }
+  .dropdown-item:last-child { border-bottom: none; }
+  .dropdown-item:hover { background: var(--indigo-lt); }
+  .dropdown-item.add-new { color: var(--indigo); font-weight: 600; }
+  .dropdown-item .item-type { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+  .dropdown-item .item-address { font-size: 0.75rem; color: var(--muted); margin-top: 1px; }
+  .dropdown-item-inner { display: flex; flex-direction: column; }
+
+  /* ── Address autocomplete ── */
+  .address-suggestions {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: var(--surface); border: 1.5px solid var(--indigo);
+    border-radius: 7px; z-index: 100;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    max-height: 200px; overflow-y: auto;
+  }
+  .address-suggestion {
+    padding: 0.65rem 1rem; cursor: pointer;
+    font-size: 0.83rem; color: var(--text);
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s; line-height: 1.4;
+  }
+  .address-suggestion:last-child { border-bottom: none; }
+  .address-suggestion:hover { background: var(--indigo-lt); }
+
+  /* ── Photo upload ── */
+  .photo-upload-label {
+    display: flex; align-items: center; gap: 0.6rem;
+    background: var(--subtle); border: 1.5px dashed var(--border-md);
+    border-radius: 7px; padding: 0.75rem 1rem;
+    cursor: pointer; transition: border-color 0.15s;
+    font-size: 0.88rem; color: var(--muted);
+  }
+  .photo-upload-label:hover { border-color: var(--indigo); color: var(--indigo); }
+  .photo-upload-label input { display: none; }
+  .photo-preview {
+    width: 100%; max-height: 200px; object-fit: cover;
+    border-radius: 7px; margin-top: 0.6rem; display: none;
+  }
+
+  /* ── Location pill ── */
+  .location-pill {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    background: var(--indigo-lt); color: var(--indigo);
+    border-radius: 20px; padding: 3px 10px;
+    font-size: 0.75rem; font-weight: 600;
+    margin-bottom: 1rem; cursor: default;
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="../" class="nav-brand">
+    <img src="../that-ate-assets/that-ate-logo.png" alt="that ate" height="28">
+  </a>
+  <div class="nav-links">
+    <a href="../"            class="nav-link">explore</a>
+    <a href="../log-a-visit" class="nav-link active">log a visit</a>
+    <a href="../my-log"      class="nav-link">my log</a>
+  </div>
+  <!-- TODO: replace with real auth button once auth is wired -->
+  <div class="nav-user">you</div>
+</nav>
+
+<div class="log-page">
+  <h1 class="log-title">log a visit</h1>
+  <p class="log-sub">what did you eat? how was it?</p>
+
+  <div id="location-pill-wrap"></div>
+
+  <!-- Restaurant search -->
+  <div class="form-group">
+    <label class="form-label">restaurant *</label>
+    <div class="restaurant-search-wrap">
+      <input class="form-input" id="log-restaurant" type="text"
+        placeholder="search or add a restaurant…" autocomplete="off" />
+      <div class="dropdown" id="restaurant-dropdown" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Fields shown when adding a new restaurant -->
+  <div id="log-new-fields" style="display:none">
+    <div class="form-group">
+      <label class="form-label">restaurant type <span class="optional">(optional)</span></label>
+      <select class="form-input" id="log-type">
+        <option value="">select a type…</option>
+        <option>Fast Food</option>
+        <option>Fast Casual</option>
+        <option>Casual Dining</option>
+        <option>Fine Dining</option>
+        <option>Food Truck</option>
+        <option>Café / Bakery</option>
+        <option>Bar / Pub</option>
+        <option>Buffet</option>
+        <option>Breakfast / Brunch</option>
+        <option>Dessert / Ice Cream</option>
+        <option>Pizza</option>
+        <option>Seafood</option>
+        <option>Steakhouse</option>
+        <option>BBQ</option>
+        <option>Other</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Address field — shown for both new and chain restaurants -->
+  <div class="form-group" id="address-group" style="display:none">
+    <label class="form-label">address *</label>
+    <div class="restaurant-search-wrap">
+      <input class="form-input" id="log-address" type="text"
+        placeholder="start typing the address…" autocomplete="off" />
+      <div class="address-suggestions" id="address-dropdown" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="form-divider"></div>
+
+  <div class="form-group">
+    <label class="form-label">what did you order? *</label>
+    <input class="form-input" id="log-dish" type="text"
+      placeholder="e.g. birria tacos, house margarita…" />
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">bites *</label>
+    <div class="bites lg clickable" id="log-bites">
+      <span class="bite" data-val="1"><img src="../that-ate-assets/that-ate-bite.png" alt="bite" width="28" height="28"></span>
+      <span class="bite" data-val="2"><img src="../that-ate-assets/that-ate-bite.png" alt="bite" width="28" height="28"></span>
+      <span class="bite" data-val="3"><img src="../that-ate-assets/that-ate-bite.png" alt="bite" width="28" height="28"></span>
+      <span class="bite" data-val="4"><img src="../that-ate-assets/that-ate-bite.png" alt="bite" width="28" height="28"></span>
+      <span class="bite" data-val="5"><img src="../that-ate-assets/that-ate-bite.png" alt="bite" width="28" height="28"></span>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">notes <span class="optional">(optional)</span></label>
+    <textarea class="form-input" id="log-comment" rows="4"
+      placeholder="anything worth remembering? would you order it again?"></textarea>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">photo <span class="optional">(optional)</span></label>
+    <label class="photo-upload-label">
+      <span id="photo-label-text">📷 add a photo</span>
+      <input type="file" id="log-photo" accept="image/*" />
+    </label>
+    <img class="photo-preview" id="photo-preview" alt="preview" />
+  </div>
+
+  <div class="form-error" id="log-error" style="display:none"></div>
+  <button class="btn-submit" id="log-submit">save visit</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+  import { injectBaseStyles, showToast, esc } from "../js/ui.js";
+  import { searchRestaurants, findRestaurantByNameAndAddress,
+           createRestaurant, addReview, seedChains } from "../js/firestore.js";
+  import { getUserLocation, reverseGeocode, autocompleteAddress } from "../js/location.js";
+  import { uploadReviewPhoto } from "../js/storage.js";
+  import { CURRENT_USER } from "../js/auth.js";
+
+  injectBaseStyles();
+
+  // Seed chains on first load (no-op if already seeded)
+  seedChains();
+
+  // ── State ────────────────────────────────────────────────────
+  let selectedRestaurantId   = null;  // set when picking existing
+  let selectedRestaurantName = null;
+  let selectedIsChain        = false; // chain = needs address even if existing
+  let selectedAddress        = null;  // the standardized display address
+  let selectedAddressKey     = null;  // the normalized key for dedup
+  let logRating              = 0;
+  let userCity               = "";
+
+  // ── URL pre-fill (arriving from restaurant page) ─────────────
+  const params     = new URLSearchParams(window.location.search);
+  const presetId   = params.get("restaurantId");
+  const presetName = params.get("name");
+
+  if (presetId && presetName) {
+    selectedRestaurantId   = presetId;
+    selectedRestaurantName = presetName;
+    document.getElementById("log-restaurant").value    = presetName;
+    document.getElementById("log-restaurant").disabled = true;
+    // Still need address if it's a chain
+    document.getElementById("address-group").style.display = "block";
+  }
+
+  // ── Location detection ───────────────────────────────────────
+  getUserLocation()
+    .then(async ({ lat, lng }) => {
+      userCity = await reverseGeocode(lat, lng);
+      if (userCity) {
+        const pill = document.getElementById("location-pill-wrap");
+        pill.innerHTML = `<div class="location-pill">📍 ${esc(userCity)}</div>`;
+        // Pre-seed address search with city
+        document.getElementById("log-address").placeholder =
+          `start typing the address in ${userCity}…`;
+      }
+    })
+    .catch(() => {}); // silently ignore if denied
+
+  // ── Restaurant search ────────────────────────────────────────
+  const restaurantInput    = document.getElementById("log-restaurant");
+  const restaurantDropdown = document.getElementById("restaurant-dropdown");
+  let searchTimeout;
+
+  restaurantInput.addEventListener("input", () => {
+    clearTimeout(searchTimeout);
+    const val = restaurantInput.value.trim();
+    if (!val) { hideRestaurantDropdown(); return; }
+    searchTimeout = setTimeout(() => renderRestaurantDropdown(val), 200);
+  });
+
+  restaurantInput.addEventListener("focus", () => {
+    if (restaurantInput.value.trim()) renderRestaurantDropdown(restaurantInput.value.trim());
+  });
+
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".restaurant-search-wrap")) hideRestaurantDropdown();
+    if (!e.target.closest("#address-group"))          hideAddressDropdown();
+  });
+
+  async function renderRestaurantDropdown(term) {
+    const results = await searchRestaurants(term);
+    restaurantDropdown.innerHTML = "";
+
+    // Always first: "+ add new restaurant"
+    const addNew = document.createElement("div");
+    addNew.className = "dropdown-item add-new";
+    addNew.textContent = `+ add "${term}" as new restaurant`;
+    addNew.addEventListener("click", () => {
+      selectNewRestaurant(term);
+    });
+    restaurantDropdown.appendChild(addNew);
+
+    results.forEach(r => {
+      const item = document.createElement("div");
+      item.className = "dropdown-item";
+      item.innerHTML = `
+        <div class="dropdown-item-inner">
+          <span>${esc(r.name)}</span>
+          ${r.address ? `<span class="item-address">${esc(r.address)}</span>` : ""}
+        </div>
+        ${r.type ? `<span class="item-type">${esc(r.type)}</span>` : ""}`;
+      item.addEventListener("click", () => selectExistingRestaurant(r));
+      restaurantDropdown.appendChild(item);
+    });
+
+    restaurantDropdown.style.display = "block";
+  }
+
+  function selectExistingRestaurant(r) {
+    selectedRestaurantId   = r.id;
+    selectedRestaurantName = r.name;
+    selectedIsChain        = !!r.isChain;
+    restaurantInput.value  = r.name;
+    hideRestaurantDropdown();
+    document.getElementById("log-new-fields").style.display = "none";
+    // Always show address — either it's a chain needing location,
+    // or it's a specific location already stored (pre-fill it)
+    document.getElementById("address-group").style.display = "block";
+    if (r.address) {
+      document.getElementById("log-address").value = r.address;
+      selectedAddress    = r.address;
+      selectedAddressKey = r.addressKey || r.address.toLowerCase();
+    }
+  }
+
+  function selectNewRestaurant(name) {
+    selectedRestaurantId   = null;
+    selectedRestaurantName = name;
+    selectedIsChain        = false;
+    restaurantInput.value  = name;
+    hideRestaurantDropdown();
+    document.getElementById("log-new-fields").style.display = "block";
+    document.getElementById("address-group").style.display  = "block";
+    document.getElementById("log-address").value = "";
+    selectedAddress    = null;
+    selectedAddressKey = null;
+  }
+
+  function hideRestaurantDropdown() {
+    restaurantDropdown.style.display = "none";
+  }
+
+  // ── Address autocomplete ─────────────────────────────────────
+  const addressInput    = document.getElementById("log-address");
+  const addressDropdown = document.getElementById("address-dropdown");
+  let addressTimeout;
+
+  addressInput.addEventListener("input", () => {
+    selectedAddress    = null;
+    selectedAddressKey = null;
+    clearTimeout(addressTimeout);
+    const val = addressInput.value.trim();
+    if (val.length < 4) { hideAddressDropdown(); return; }
+    // Append city to query if we have location for better results
+    const q = userCity ? `${val} ${userCity}` : val;
+    addressTimeout = setTimeout(() => renderAddressDropdown(q), 350);
+  });
+
+  async function renderAddressDropdown(query) {
+    const results = await autocompleteAddress(query);
+    if (!results.length) { hideAddressDropdown(); return; }
+    addressDropdown.innerHTML = "";
+    results.forEach(r => {
+      const item = document.createElement("div");
+      item.className = "address-suggestion";
+      item.textContent = r.display;
+      item.addEventListener("click", () => {
+        addressInput.value = r.display;
+        selectedAddress    = r.display;
+        selectedAddressKey = r.short;
+        hideAddressDropdown();
+      });
+      addressDropdown.appendChild(item);
+    });
+    addressDropdown.style.display = "block";
+  }
+
+  function hideAddressDropdown() {
+    addressDropdown.style.display = "none";
+  }
+
+  // ── Bite rating ──────────────────────────────────────────────
+  function setRating(val) { logRating = val; highlightBites(val); }
+  function highlightBites(val) {
+    document.querySelectorAll("#log-bites .bite").forEach(b => {
+      b.classList.toggle("on", parseInt(b.dataset.val) <= val);
+    });
+  }
+  document.querySelectorAll("#log-bites .bite").forEach(bite => {
+    bite.addEventListener("click",      () => setRating(parseInt(bite.dataset.val)));
+    bite.addEventListener("mouseenter", () => highlightBites(parseInt(bite.dataset.val)));
+    bite.addEventListener("mouseleave", () => highlightBites(logRating));
+  });
+
+  // ── Photo preview ────────────────────────────────────────────
+  document.getElementById("log-photo").addEventListener("change", e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById("photo-label-text").textContent = `📷 ${file.name}`;
+    const preview = document.getElementById("photo-preview");
+    preview.src   = URL.createObjectURL(file);
+    preview.style.display = "block";
+  });
+
+  // ── Submit ───────────────────────────────────────────────────
+  document.getElementById("log-submit").addEventListener("click", async () => {
+    const dish    = document.getElementById("log-dish").value.trim();
+    const comment = document.getElementById("log-comment").value.trim();
+    const type    = document.getElementById("log-type")?.value || "";
+    const errEl   = document.getElementById("log-error");
+    const photoFile = document.getElementById("log-photo").files[0] || null;
+
+    const restaurantName = selectedRestaurantName || restaurantInput.value.trim();
+    const addressShown   = addressInput.value.trim();
+
+    if (!restaurantName) return showErr(errEl, "please select or add a restaurant.");
+    if (!addressShown)   return showErr(errEl, "please enter the address of this location.");
+    if (!selectedAddress) return showErr(errEl, "please select an address from the suggestions.");
+    if (!dish)           return showErr(errEl, "dish name is required.");
+    if (!logRating)      return showErr(errEl, "please select a bite rating.");
+
+    errEl.style.display = "none";
+    const btn = document.getElementById("log-submit");
+    btn.disabled = true; btn.textContent = "saving…";
+
+    try {
+      let restaurantId = selectedRestaurantId;
+
+      // If it's a chain or new, check dedup by name + addressKey first
+      if (!restaurantId || selectedIsChain) {
+        const existing = await findRestaurantByNameAndAddress(restaurantName, selectedAddressKey);
+        if (existing) {
+          restaurantId = existing.id;
+        } else {
+          restaurantId = await createRestaurant({
+            name:       restaurantName,
+            address:    selectedAddress,
+            addressKey: selectedAddressKey,
+            type,
+          });
+        }
+      }
+
+      // Upload photo if provided
+      let photoURL = null;
+      if (photoFile) {
+        btn.textContent = "uploading photo…";
+        photoURL = await uploadReviewPhoto(photoFile);
+      }
+
+      // TODO: swap CURRENT_USER for real auth user once auth is wired
+      await addReview({
+        restaurantId,
+        restaurantName,
+        dish, rating: logRating, comment, photoURL,
+        userId:   CURRENT_USER.uid,
+        userName: CURRENT_USER.displayName,
+      });
+
+      window.location.href = `../restaurant?id=${restaurantId}`;
+    } catch (err) {
+      console.error(err);
+      showErr(errEl, "something went wrong. try again.");
+      btn.disabled = false; btn.textContent = "save visit";
+    }
+  });
+
+  function showErr(el, msg) { el.textContent = msg; el.style.display = "block"; }
+</script>
+</body>
+</html>
