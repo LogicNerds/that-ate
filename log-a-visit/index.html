@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>log a visit · that ate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  .log-page { max-width: 540px; margin: 0 auto; padding: 2.5rem 1.75rem; }
+  .log-title {
+    font-size: 1.75rem; font-weight: 600; color: var(--text);
+    margin-bottom: 0.25rem; letter-spacing: -0.02em;
+  }
+  .log-sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="../" class="nav-brand">
+    <img src="../that-ate-assets/that-ate-logo.png" alt="that ate" height="28">
+  </a>
+  <div class="nav-links">
+    <a href="../"            class="nav-link">explore</a>
+    <a href="../log-a-visit" class="nav-link active">log a visit</a>
+    <a href="../my-log"      class="nav-link">my log</a>
+  </div>
+  <!-- TODO: replace with real auth button once auth is wired -->
+  <div class="nav-user">you</div>
+</nav>
+
+<div class="log-page">
+  <h1 class="log-title">log a visit</h1>
+  <p class="log-sub">what did you eat? how was it?</p>
+
+  <div class="form-group">
+    <label class="form-label">restaurant *</label>
+    <input class="form-input" id="log-restaurant" type="text" placeholder="e.g. El Camino Real" />
+  </div>
+
+  <div id="log-new-fields">
+    <div class="form-group">
+      <label class="form-label">address <span class="optional">(optional)</span></label>
+      <input class="form-input" id="log-address" type="text" placeholder="e.g. 123 Main St, Riverside, CA" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">cuisine <span class="optional">(optional)</span></label>
+      <select class="form-input" id="log-cuisine">
+        <option value="">select a cuisine…</option>
+        <option>American</option><option>Mexican</option><option>Italian</option>
+        <option>Japanese</option><option>Chinese</option><option>Indian</option>
+        <option>Thai</option><option>Mediterranean</option><option>Korean</option>
+        <option>Other</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="form-divider"></div>
+
+  <div class="form-group">
+    <label class="form-label">what did you order? *</label>
+    <input class="form-input" id="log-dish" type="text" placeholder="e.g. birria tacos, house margarita…" />
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">bites *</label>
+    <div class="bites lg clickable" id="log-bites">
+      <span class="bite" data-val="1"><img src="../that-ate-assets/that-ate-bite.png" alt="bite" width="28" height="28"></span>
+      <span class="bite" data-val="2"><img src="../that-ate-assets/that-ate-bite.png" alt="bite" width="28" height="28"></span>
+      <span class="bite" data-val="3"><img src="../that-ate-assets/that-ate-bite.png" alt="bite" width="28" height="28"></span>
+      <span class="bite" data-val="4"><img src="../that-ate-assets/that-ate-bite.png" alt="bite" width="28" height="28"></span>
+      <span class="bite" data-val="5"><img src="../that-ate-assets/that-ate-bite.png" alt="bite" width="28" height="28"></span>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">notes <span class="optional">(optional)</span></label>
+    <textarea class="form-input" id="log-comment" rows="4"
+      placeholder="anything worth remembering? would you order it again?"></textarea>
+  </div>
+
+  <div class="form-error" id="log-error" style="display:none"></div>
+  <button class="btn-submit" id="log-submit">save visit</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+  import { injectBaseStyles, showToast, esc } from "../js/ui.js";
+  import { findOrCreateRestaurant, addReview }  from "../js/firestore.js";
+  import { CURRENT_USER }                       from "../js/auth.js";
+
+  injectBaseStyles();
+
+  // Read URL params — set when arriving from a restaurant page
+  const params         = new URLSearchParams(window.location.search);
+  const presetId       = params.get("restaurantId");
+  const presetName     = params.get("name");
+
+  // Pre-fill and lock restaurant field if we came from a restaurant page
+  if (presetId && presetName) {
+    const input = document.getElementById("log-restaurant");
+    input.value    = presetName;
+    input.disabled = true;
+    document.getElementById("log-new-fields").style.display = "none";
+  }
+
+  // Bite rating interaction
+  let logRating = 0;
+
+  function setRating(val) {
+    logRating = val;
+    highlight(val);
+  }
+
+  function highlight(val) {
+    document.querySelectorAll("#log-bites .bite").forEach(b => {
+      b.classList.toggle("on", parseInt(b.dataset.val) <= val);
+    });
+  }
+
+  document.querySelectorAll("#log-bites .bite").forEach(bite => {
+    bite.addEventListener("click",      () => setRating(parseInt(bite.dataset.val)));
+    bite.addEventListener("mouseenter", () => highlight(parseInt(bite.dataset.val)));
+    bite.addEventListener("mouseleave", () => highlight(logRating));
+  });
+
+  // Submit
+  document.getElementById("log-submit").addEventListener("click", async () => {
+    const restaurantName = document.getElementById("log-restaurant").value.trim();
+    const address        = document.getElementById("log-address")?.value.trim() || "";
+    const cuisine        = document.getElementById("log-cuisine")?.value || "";
+    const dish           = document.getElementById("log-dish").value.trim();
+    const comment        = document.getElementById("log-comment").value.trim();
+    const errEl          = document.getElementById("log-error");
+
+    if (!restaurantName) { errEl.textContent = "restaurant name is required."; errEl.style.display = "block"; return; }
+    if (!dish)           { errEl.textContent = "dish name is required.";       errEl.style.display = "block"; return; }
+    if (!logRating)      { errEl.textContent = "please select a bite rating."; errEl.style.display = "block"; return; }
+
+    errEl.style.display = "none";
+    const btn = document.getElementById("log-submit");
+    btn.disabled = true; btn.textContent = "saving…";
+
+    try {
+      const restaurantId = presetId ||
+        await findOrCreateRestaurant({ name: restaurantName, address, cuisine });
+
+      // TODO: swap CURRENT_USER for real auth user once auth is wired
+      await addReview({
+        restaurantId, restaurantName,
+        dish, rating: logRating, comment,
+        userId:   CURRENT_USER.uid,
+        userName: CURRENT_USER.displayName,
+      });
+
+      // Redirect to the restaurant page
+      window.location.href = `../restaurant?id=${restaurantId}`;
+    } catch (err) {
+      console.error(err);
+      errEl.textContent = "something went wrong. try again.";
+      errEl.style.display = "block";
+      btn.disabled = false; btn.textContent = "save visit";
+    }
+  });
+</script>
+</body>
+</html>
